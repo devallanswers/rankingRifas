@@ -82,7 +82,7 @@ footer{margin-top:18px;text-align:center}
 <div id="toasts" aria-live="polite"></div>
 <main>
  <header>
-  <span class="live"><span class="dot" id="dot"></span><span id="liveTxt">Conectando...</span></span>
+  <span class="live"><span class="dot" id="dot"></span><span id="liveTxt">Carregando o ranking...</span></span>
   <h1>Corrida da Rifa</h1>
   <p class="sub">EAC 2026: quem vai cruzar a linha de chegada primeiro?</p>
  </header>
@@ -110,8 +110,8 @@ footer{margin-top:18px;text-align:center}
 // ============ CONFIGURAÇÃO ============
 // Se esta página for o "Index" do próprio Apps Script, não precisa mudar nada.
 // Se estiver hospedada fora, cole aqui a URL do app da web (termina em /exec).
-const API_URL = " https://script.google.com/macros/s/AKfycbyT84qHAgbhB1AtowdK0h3OJJBHbOD6GSMDDQGxlG2DUeZFN3q-X72T28v37NTcLvNjoQ/exec";
-const REFRESH_SECONDS = 15;
+const API_URL = "https://script.google.com/macros/s/AKfycbyT84qHAgbhB1AtowdK0h3OJJBHbOD6GSMDDQGxlG2DUeZFN3q-X72T28v37NTcLvNjoQ/exec";
+const REFRESH_SECONDS = 20;
 // ======================================
 
 const COLORS = ["#FF3D81","#FF8A00","#FFD600","#00D68F","#00B8FF","#9B6BFF","#FF5252","#26E3C2","#B2FF3D","#FF6EC7","#4D7CFF","#FFA63D"];
@@ -167,12 +167,26 @@ function demoData(){
   const eq = DEMO.map(e=>({nome:e.nome,total:e.total,vendidos:e.vendidos,arrecadado:e.vendidos*5}));
   return {ok:true,data:{info:{sorteio:"data do sorteio",premio:"prêmio da rifa",preco:5},equipes:eq,totais:{}}};
 }
+async function fetchJSON(){
+  const url = API_URL + (API_URL.includes("?")?"&":"?") + "api=dashboard&t=" + Date.now();
+  const r = await fetch(url);
+  return JSON.parse(await r.text()); // falha se vier a página HTML de erro do Google
+}
+async function fetchWithRetry(tries = 4){
+  for(let i = 0; i < tries; i++){
+    try { return await fetchJSON(); }
+    catch(e){
+      if(i === tries - 1) throw e;
+      await new Promise(r => setTimeout(r, 800 * (i + 1)));
+    }
+  }
+}
 function fetchData(){
   return new Promise((res,rej)=>{
     if(window.google && google.script && google.script.run){
       google.script.run.withSuccessHandler(s=>{try{res(JSON.parse(s))}catch(e){rej(e)}}).withFailureHandler(rej).getDashboard();
     } else if(API_URL){
-      fetch(API_URL + (API_URL.includes("?")?"&":"?") + "api=dashboard").then(r=>r.json()).then(res).catch(rej);
+      fetchWithRetry().then(res).catch(rej);
     } else { res(demoData()); }
   });
 }
@@ -294,7 +308,8 @@ async function refresh(){
   try{
     const raw = await fetchData();
     if(!raw.ok) throw new Error(raw.error);
-    render(raw); last = Date.now(); $("dot").classList.remove("off");
+    render(raw); last = Date.now();
+    try { localStorage.setItem("rifa_cache", JSON.stringify(raw)); } catch(_) {} $("dot").classList.remove("off");
   }catch(e){
     $("dot").classList.add("off"); $("liveTxt").textContent = "Sem conexão. Tentando de novo...";
     console.error(e);
@@ -319,6 +334,10 @@ document.addEventListener("visibilitychange",()=>{ if(!document.hidden) refresh(
     b.appendChild(d);
   }
 })();
+try {
+  const c = localStorage.getItem("rifa_cache");
+  if(c){ render(JSON.parse(c)); $("liveTxt").textContent = "Atualizando..."; }
+} catch(_) {}
 refresh();
 </script>
 </body>
