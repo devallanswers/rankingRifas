@@ -195,10 +195,9 @@ function normalize(raw){
   const eq = d.equipes.filter(e=>e.nome).map((e,idx)=>{
     const total = Number(e.total)||0, vend = Number(e.vendidos)||0;
     return {idx, nome:String(e.nome), total, vend, pct: total>0 ? Math.min(1, vend/total) : 0,
-            money: Number(e.arrecadado) || vend*preco, rk: Number(e.ranking)};
+            money: Number(e.arrecadado) || vend*preco};
   });
-  const useSheet = eq.length && eq.every(e=>isFinite(e.rk) && e.rk>0);
-  eq.sort((a,b)=> (useSheet && a.rk!==b.rk) ? a.rk-b.rk : (b.pct-a.pct) || (b.vend-a.vend));
+  eq.sort((a,b)=> (b.pct-a.pct) || (b.vend-a.vend));
   return {eq, info:d.info};
 }
 
